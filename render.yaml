@@ -5,30 +5,38 @@ services:
     env: python
     plan: free
     branch: main
+
     buildCommand: >
       python3 -m pip install --upgrade pip setuptools wheel && \
-      python3 -m pip install -r requirements.txt
-    releaseCommand: >
+      python3 -m pip install -r requirements.txt && \
       python3 manage.py migrate --noinput && \
       python3 manage.py collectstatic --noinput
+
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+
     healthCheckPath: /
+
     envVars:
       - key: SECRET_KEY
         value: ""
         scope: private
+
       - key: DEBUG
         value: "False"
         scope: private
+
       - key: STRIPE_SECRET_KEY
         value: ""
         scope: private
+
       - key: STRIPE_PUBLISHABLE_KEY
         value: ""
         scope: private
+
       - key: STRIPE_WEBHOOK_SECRET
         value: ""
         scope: private
+
       - key: DATABASE_URL
         value: ""
         scope: private
