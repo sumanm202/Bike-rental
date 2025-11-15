@@ -6,20 +6,55 @@ services:
     plan: free
     branch: main
 
-    # Use Poetry to install dependencies and run Django commands inside Poetry's venv
     buildCommand: >
       bash -lc '
-      echo "Installing dependencies with Poetry...";
-      poetry install --no-interaction --no-ansi || { echo "poetry install failed"; exit 1; };
-      echo "Running migrations and collectstatic via poetry run python...";
-      poetry run python manage.py migrate --noinput || { echo "migrate failed"; exit 1; };
-      poetry run python manage.py collectstatic --noinput || { echo "collectstatic failed"; exit 1; };
+      set -euo pipefail
+      echo "Starting build..."
+
+      if command -v poetry >/dev/null 2>&1; then
+        echo "Poetry found: using poetry to install dependencies"
+        poetry install --no-interaction --no-ansi
+
+        echo "Running migrations & collectstatic via poetry run python"
+        poetry run python manage.py migrate --noinput
+        poetry run python manage.py collectstatic --noinput
+
+      else
+        echo "Poetry not found: falling back to python/pip"
+        PY=$(command -v python3 || command -v python || command -v python3.13 || true)
+        if [ -z "$PY" ]; then
+          echo "ERROR: No python binary found in PATH; cannot continue"
+          exit 1
+        fi
+        echo "Using python: $PY"
+
+        $PY -m pip install --upgrade pip setuptools wheel
+        if [ -f requirements.txt ]; then
+          $PY -m pip install -r requirements.txt
+        else
+          echo "WARNING: requirements.txt not found; skipping pip install"
+        fi
+
+        echo "Running migrations & collectstatic via $PY"
+        $PY manage.py migrate --noinput
+        $PY manage.py collectstatic --noinput
+      fi
+
+      echo "Build finished."
       '
 
     startCommand: >
       bash -lc '
-      # run gunicorn from the environment; poetry run ensures correct venv
-      exec poetry run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      set -euo pipefail
+      # Start using poetry if available, otherwise run gunicorn directly (requires gunicorn in requirements)
+      if command -v poetry >/dev/null 2>&1; then
+        echo "Starting with poetry run gunicorn..."
+        exec poetry run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      else
+        echo "Starting with system gunicorn..."
+        # Ensure gunicorn is installed in pip mode (requirements.txt)
+        exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      fi
       '
 
     healthCheckPath: /
@@ -28,23 +63,18 @@ services:
       - key: SECRET_KEY
         value: ""
         scope: private
-
       - key: DEBUG
         value: "False"
         scope: private
-
       - key: STRIPE_SECRET_KEY
         value: ""
         scope: private
-
       - key: STRIPE_PUBLISHABLE_KEY
         value: ""
         scope: private
-
       - key: STRIPE_WEBHOOK_SECRET
         value: ""
         scope: private
-
       - key: DATABASE_URL
         value: ""
         scope: private
