@@ -6,30 +6,20 @@ services:
     plan: free
     branch: main
 
+    # Use Poetry to install dependencies and run Django commands inside Poetry's venv
     buildCommand: >
       bash -lc '
-      # find a python executable available in this build image
-      PY=$(command -v python3 || command -v python || command -v python3.13 || true);
-      if [ -z "$PY" ]; then
-        echo "No python binary found in PATH; failing build";
-        exit 1;
-      fi;
-      echo "Using python: $PY";
-      $PY -m pip install --upgrade pip setuptools wheel;
-      $PY -m pip install -r requirements.txt;
-      $PY manage.py migrate --noinput;
-      $PY manage.py collectstatic --noinput
+      echo "Installing dependencies with Poetry...";
+      poetry install --no-interaction --no-ansi || { echo "poetry install failed"; exit 1; };
+      echo "Running migrations and collectstatic via poetry run python...";
+      poetry run python manage.py migrate --noinput || { echo "migrate failed"; exit 1; };
+      poetry run python manage.py collectstatic --noinput || { echo "collectstatic failed"; exit 1; };
       '
 
     startCommand: >
       bash -lc '
-      # pick a python executable for running gunicorn (if needed)
-      PY=$(command -v python3 || command -v python || command -v python3.13 || true);
-      if [ -z "$PY" ]; then
-        echo "No python binary found at runtime; exiting";
-        exit 1;
-      fi;
-      exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      # run gunicorn from the environment; poetry run ensures correct venv
+      exec poetry run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
       '
 
     healthCheckPath: /
