@@ -1,0 +1,69 @@
+<!-- Shared Navbar Component -->
+<nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/">🚗 Bike & Car Rental</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="/vehicles/">Vehicles</a></li>
+                <li class="nav-item">
+                    <div class="nav-link dropdown">
+                        <button class="btn btn-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="userDropdownBtn">
+                            👤 User
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/login/">Login</a></li>
+                            <li><a class="dropdown-item" href="/register/">Sign Up</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/dashboard/">Dashboard</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="logoutNav(event)">Logout</a></li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="nav-item"><a class="nav-link" href="/admin/">🔑 Admin</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<script>
+    function updateUserDropdown() {
+        const token = localStorage.getItem('authToken');
+        const btn = document.getElementById('userDropdownBtn');
+        if (!btn) return;
+
+        const items = document.querySelectorAll('.dropdown-menu li a, .dropdown-menu hr');
+        
+        if (token) {
+            btn.innerText = '👤 Account';
+            // Hide Login and Sign Up
+            items[0].parentElement.style.display = 'none';
+            items[1].parentElement.style.display = 'none';
+            // Show Dashboard and Logout
+            items[3].parentElement.style.display = 'block';
+            items[4].parentElement.style.display = 'block';
+        } else {
+            btn.innerText = '👤 User';
+            // Show Login and Sign Up
+            items[0].parentElement.style.display = 'block';
+            items[1].parentElement.style.display = 'block';
+            // Hide Dashboard and Logout
+            items[3].parentElement.style.display = 'none';
+            items[4].parentElement.style.display = 'none';
+        }
+    }
+
+    function logoutNav(e) {
+        e.preventDefault();
+        localStorage.removeItem('authToken');
+        updateUserDropdown();
+        window.location.href = '/';
+    }
+
+    // Update dropdown on page load and when storage changes
+    document.addEventListener('DOMContentLoaded', updateUserDropdown);
+    window.addEventListener('storage', updateUserDropdown);
+</script>

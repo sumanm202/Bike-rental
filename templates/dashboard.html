@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard - Bike & Car Rental</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .sidebar { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .sidebar a { display: block; padding: 10px; margin: 5px 0; border-radius: 4px; text-decoration: none; color: #667eea; }
+        .sidebar a.active { background-color: #667eea; color: white; }
+        .booking-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; border-left: 4px solid #667eea; }
+        .status-badge { padding: 5px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
+        .status-pending { background-color: #ffc107; color: black; }
+        .status-confirmed { background-color: #28a745; color: white; }
+        .status-cancelled { background-color: #dc3545; color: white; }
+        .status-completed { background-color: #17a2b8; color: white; }
+        .btn-primary { background-color: #667eea; border: none; }
+        .btn-primary:hover { background-color: #764ba2; }
+        .btn-outline-danger { color: #dc3545; border-color: #dc3545; }
+        .btn-outline-danger:hover { background-color: #dc3545; border-color: #dc3545; }
+        .loading { text-align: center; padding: 40px; }
+        .error { color: #dc3545; padding: 15px; border-radius: 8px; background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">🚗 Bike & Car Rental</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/vehicles/">Vehicles</a></li>
+                    <li class="nav-item">
+                        <div class="nav-link dropdown">
+                            <button class="btn btn-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="userDropdownBtn">👤 Account</button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item active" href="/dashboard/">Dashboard</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="logoutNav(event)">Logout</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/admin/">🔑 Admin</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <script>function logoutNav(e){e.preventDefault();localStorage.removeItem('authToken');window.location.href='/';}</script>
+
+    <div class="container py-4">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 mb-4">
+                <div class="sidebar">
+                    <h5 class="mb-3">Navigation</h5>
+                    <a href="#" class="active" onclick="showSection('bookings')">My Bookings</a>
+                    <a href="#" onclick="showSection('profile')">Profile</a>
+                    <a href="/vehicles/" class="text-decoration-none" style="color: #667eea;">Browse Vehicles</a>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9">
+                <!-- Bookings Section -->
+                <div id="bookingsSection">
+                    <h3 class="mb-4">My Bookings</h3>
+                    <div class="loading" id="bookingsLoading">Loading your bookings...</div>
+                    <div class="error" id="bookingsError" style="display: none;"></div>
+                    <div id="bookingsList"></div>
+                </div>
+
+                <!-- Profile Section (hidden by default) -->
+                <div id="profileSection" style="display: none;">
+                    <h3 class="mb-4">Profile</h3>
+                    <div class="card">
+                        <div class="card-body">
+                            <div id="profileView" style="display: block;">
+                                <p><strong>Username:</strong> <span id="profileUsername"></span></p>
+                                <p><strong>Email:</strong> <span id="profileEmail"></span></p>
+                                <p><strong>First Name:</strong> <span id="profileFirstName">-</span></p>
+                                <p><strong>Last Name:</strong> <span id="profileLastName">-</span></p>
+                                <button class="btn btn-primary" onclick="toggleProfileEdit()">Edit Profile</button>
+                            </div>
+
+                            <div id="profileEdit" style="display: none;">
+                                <div class="mb-3">
+                                    <label class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="editUsername" disabled>
+                                    <small class="text-muted">Username cannot be changed</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="editEmail" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">First Name</label>
+                                    <input type="text" class="form-control" id="editFirstName">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Last Name</label>
+                                    <input type="text" class="form-control" id="editLastName">
+                                </div>
+
+                                <div id="profileError" class="alert alert-danger" style="display: none;"></div>
+                                <div id="profileSuccess" class="alert alert-success" style="display: none;"></div>
+
+                                <button class="btn btn-success" onclick="saveProfile()">Save Changes</button>
+                                <button class="btn btn-secondary" onclick="toggleProfileEdit()">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showSection(section) {
+            document.getElementById('bookingsSection').style.display = section === 'bookings' ? 'block' : 'none';
+            document.getElementById('profileSection').style.display = section === 'profile' ? 'block' : 'none';
+
+            // Update active link
+            document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function loadBookings() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login/';
+                return;
+            }
+
+            fetch('/api/bookings/my/?format=json', {
+                headers: { 
+                    'Authorization': `Token ${token}`,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(resp => {
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                return resp.json();
+            })
+            .then(data => {
+                document.getElementById('bookingsLoading').style.display = 'none';
+                const bookings = data.results || data;
+                if (bookings.length === 0) {
+                    document.getElementById('bookingsList').innerHTML = '<p class="text-muted">You have no bookings yet. <a href="/vehicles/">Browse vehicles</a></p>';
+                    return;
+                }
+
+                document.getElementById('bookingsList').innerHTML = bookings.map(b => {
+                    const vehicleType = (b.vehicle && b.vehicle.type === 'car') ? '🚗 Car' : '🏍️ Bike';
+                    const vehicleTitle = (b.vehicle && b.vehicle.title) || 'Unknown Vehicle';
+                    const vehicleMake = (b.vehicle && b.vehicle.make) || 'N/A';
+                    const vehicleModel = (b.vehicle && b.vehicle.model) || '';
+                    const vehicleCity = (b.vehicle && b.vehicle.location_city) || 'N/A';
+                    const totalPrice = (b.total_price !== undefined) ? parseFloat(b.total_price).toFixed(2) : '0.00';
+                    
+                    return `
+                    <div class="booking-card">
+                        <div class="row">
+                            <div class="col-md-7">
+                                <h5>${vehicleTitle}</h5>
+                                <p class="text-muted">${vehicleType} • ${vehicleMake} ${vehicleModel}</p>
+                                <p><strong>Dates:</strong> ${b.start_date} to ${b.end_date}</p>
+                                <p><strong>Location:</strong> ${vehicleCity}</p>
+                            </div>
+                            <div class="col-md-5 text-md-end">
+                                <p class="mb-2">
+                                    <span class="status-badge status-${b.status}">${b.status.toUpperCase()}</span>
+                                </p>
+                                <p class="mb-2"><strong>Total: $${totalPrice}</strong></p>
+                                <div class="btn-group" role="group">
+                                    <a href="/booking/${b.id}/" class="btn btn-sm btn-primary">View</a>
+                                    ${b.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelBooking(${b.id})">Cancel</button>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            })
+            .catch(err => {
+                document.getElementById('bookingsLoading').style.display = 'none';
+                document.getElementById('bookingsError').style.display = 'block';
+                document.getElementById('bookingsError').innerText = 'Error loading bookings: ' + err.message;
+            });
+        }
+
+        function loadProfile() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login/';
+                return;
+            }
+
+            fetch('/api/auth/user/?format=json', {
+                headers: { 
+                    'Authorization': `Token ${token}`,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(resp => {
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                return resp.json();
+            })
+            .then(data => {
+                document.getElementById('profileUsername').innerText = data.username || 'N/A';
+                document.getElementById('profileEmail').innerText = data.email || 'N/A';
+                document.getElementById('profileFirstName').innerText = data.first_name || '-';
+                document.getElementById('profileLastName').innerText = data.last_name || '-';
+
+                // Populate edit form
+                document.getElementById('editUsername').value = data.username || '';
+                document.getElementById('editEmail').value = data.email || '';
+                document.getElementById('editFirstName').value = data.first_name || '';
+                document.getElementById('editLastName').value = data.last_name || '';
+            })
+            .catch(err => {
+                console.error('Error loading profile:', err);
+                document.getElementById('profileUsername').innerText = 'Error loading';
+                document.getElementById('profileEmail').innerText = 'Error loading';
+            });
+        }
+
+        function toggleProfileEdit() {
+            const viewDiv = document.getElementById('profileView');
+            const editDiv = document.getElementById('profileEdit');
+            viewDiv.style.display = viewDiv.style.display === 'none' ? 'block' : 'none';
+            editDiv.style.display = editDiv.style.display === 'none' ? 'block' : 'none';
+
+            // Clear messages when toggling
+            document.getElementById('profileError').style.display = 'none';
+            document.getElementById('profileSuccess').style.display = 'none';
+        }
+
+        function saveProfile() {
+            const token = localStorage.getItem('authToken');
+            const email = document.getElementById('editEmail').value;
+            const firstName = document.getElementById('editFirstName').value;
+            const lastName = document.getElementById('editLastName').value;
+
+            if (!email) {
+                alert('Email is required');
+                return;
+            }
+
+            fetch('/api/auth/user/?format=json', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token ${token}`,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: email,
+                    first_name: firstName,
+                    last_name: lastName
+                })
+            })
+            .then(resp => {
+                if (!resp.ok) return resp.json().then(d => { throw new Error(d.error || 'Error saving profile'); });
+                return resp.json();
+            })
+            .then(data => {
+                document.getElementById('profileSuccess').style.display = 'block';
+                document.getElementById('profileSuccess').innerText = data.message || 'Profile updated successfully';
+                document.getElementById('profileError').style.display = 'none';
+
+                // Reload profile data after a short delay
+                setTimeout(() => {
+                    loadProfile();
+                    toggleProfileEdit();
+                }, 1500);
+            })
+            .catch(err => {
+                document.getElementById('profileError').style.display = 'block';
+                document.getElementById('profileError').innerText = 'Error: ' + err.message;
+                document.getElementById('profileSuccess').style.display = 'none';
+            });
+        }
+
+        function cancelBooking(bookingId) {
+            if (!confirm('Are you sure you want to cancel this booking?')) return;
+
+            const token = localStorage.getItem('authToken');
+            fetch(`/api/bookings/${bookingId}/cancel/?format=json`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token ${token}`,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({})
+            })
+            .then(resp => {
+                if (!resp.ok) return resp.text().then(t => { throw new Error(t || 'Error cancelling booking'); });
+                return resp.json();
+            })
+            .then(data => {
+                alert('Booking cancelled successfully');
+                loadBookings();
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/';
+        }
+
+        // Load data on page load
+        loadBookings();
+        loadProfile();
+    </script>
+</body>
+</html>

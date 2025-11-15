@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Vehicles - Bike & Car Rental</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .vehicle-card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .vehicle-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .badge-car { background-color: #667eea; }
+        .badge-bike { background-color: #f093fb; }
+        .filter-panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .vehicle-image { height: 250px; object-fit: cover; background-color: #e9ecef; }
+        .loading { display: none; text-align: center; padding: 40px; }
+        .error { display: none; color: #dc3545; padding: 15px; border-radius: 8px; background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">🚗 Bike & Car Rental</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="/vehicles/">Vehicles</a></li>
+                    <li class="nav-item">
+                        <div class="nav-link dropdown">
+                            <button class="btn btn-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="userDropdownBtn">👤 User</button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="/login/">Login</a></li>
+                                <li><a class="dropdown-item" href="/register/">Sign Up</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/dashboard/">Dashboard</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="logoutNav(event)">Logout</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/admin/">🔑 Admin</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <script>
+        function updateUserDropdown(){const token=localStorage.getItem('authToken');const btn=document.getElementById('userDropdownBtn');if(!btn)return;const items=document.querySelectorAll('.dropdown-menu li');if(token){btn.innerText='👤 Account';items[0].style.display='none';items[1].style.display='none';items[3].style.display='block';items[4].style.display='block';}else{btn.innerText='👤 User';items[0].style.display='block';items[1].style.display='block';items[3].style.display='none';items[4].style.display='none';}}\nfunction logoutNav(e){e.preventDefault();localStorage.removeItem('authToken');updateUserDropdown();window.location.href='/';}\ndocument.addEventListener('DOMContentLoaded',updateUserDropdown);window.addEventListener('storage',updateUserDropdown);
+    </script>
+
+    <div class="container py-4">
+        <h2 class="mb-4">Browse Vehicles</h2>
+
+        <div class="row">
+            <!-- Filters Panel -->
+            <div class="col-md-3 mb-4">
+                <div class="filter-panel">
+                    <h5 class="mb-3">Filters</h5>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Type</label>
+                        <select id="filterType" class="form-select">
+                            <option value="">All Types</option>
+                            <option value="car">Car</option>
+                            <option value="bike">Bike</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Seats</label>
+                        <input type="number" id="filterSeats" class="form-control" placeholder="e.g., 4" min="1">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Price Range</label>
+                        <div class="input-group mb-2">
+                            <input type="number" id="filterMinPrice" class="form-control" placeholder="Min" min="0">
+                        </div>
+                        <div class="input-group">
+                            <input type="number" id="filterMaxPrice" class="form-control" placeholder="Max" min="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">City</label>
+                        <input type="text" id="filterCity" class="form-control" placeholder="e.g., New York">
+                    </div>
+
+                    <button class="btn btn-primary w-100 mb-2" onclick="applyFilters()">Apply Filters</button>
+                    <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">Clear</button>
+                </div>
+            </div>
+
+            <!-- Vehicles List -->
+            <div class="col-md-9">
+                <div class="error" id="errorMsg"></div>
+                <div class="loading" id="loading">Loading vehicles...</div>
+
+                <div id="vehiclesList" class="row">
+                    <!-- Vehicles will be loaded here by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script>
+        let currentPage = 1;
+        let apiUrl = '/api/vehicles/';
+
+        function loadVehicles() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('vehiclesList').innerHTML = '';
+            document.getElementById('errorMsg').style.display = 'none';
+
+            // Ensure DRF returns JSON (force format=json) and set Accept header
+            let fetchUrl = apiUrl;
+            if (!fetchUrl.includes('format=json')) {
+                fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + 'format=json';
+            }
+
+            fetch(fetchUrl, { headers: { 'Accept': 'application/json' } })
+                .then(resp => {
+                    const ct = resp.headers.get('content-type') || '';
+                    if (!ct.includes('application/json')) {
+                        return resp.text().then(t => { throw new Error('Expected JSON response but got HTML'); });
+                    }
+                    return resp.json();
+                })
+                .then(data => {
+                    document.getElementById('loading').style.display = 'none';
+                    if (data.results) {
+                        renderVehicles(data.results);
+                    } else {
+                        renderVehicles(data);
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('errorMsg').style.display = 'block';
+                    document.getElementById('errorMsg').innerText = 'Error loading vehicles: ' + err.message;
+                });
+        }
+
+        function renderVehicles(vehicles) {
+            const list = document.getElementById('vehiclesList');
+            if (vehicles.length === 0) {
+                // Show a demo vertical list when API returns no vehicles
+                renderDemoVehicles();
+                return;
+            }
+
+            list.innerHTML = vehicles.map(v => {
+                const id = v.id ?? v.pk ?? v.vehicle_id ?? v['id'] ?? '';
+                const type = (v.type || 'unknown');
+                const typeLabel = (typeof type === 'string') ? type.toUpperCase() : String(type);
+                const title = v.title || 'Untitled';
+                const desc = v.description || 'No description';
+                const make = v.make || 'N/A';
+                const model = v.model || '';
+                const seats = v.seats ?? 'N/A';
+                const city = v.location_city || 'N/A';
+                const price = (v.price_per_day !== undefined && v.price_per_day !== null && !isNaN(parseFloat(v.price_per_day))) ? parseFloat(v.price_per_day).toFixed(2) : 'N/A';
+                const badgeClass = (type === 'car') ? 'badge-car' : 'badge-bike';
+                
+                // Use actual image if available, else placeholder
+                let imageUrl = `https://via.placeholder.com/400x250?text=${encodeURIComponent(typeLabel)}`;
+                if (v.images && v.images.length > 0 && v.images[0].image) {
+                    imageUrl = v.images[0].image;
+                }
+
+                return `
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card vehicle-card h-100">
+                        <img src="${imageUrl}" class="card-img-top vehicle-image" alt="${title}" onerror="this.src='https://via.placeholder.com/400x250?text=${encodeURIComponent(typeLabel)}'">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">${title}</h5>
+                            <span class="badge mb-2 ${badgeClass}" style="width: fit-content;">${type}</span>
+                            <p class="card-text text-muted text-truncate">${desc}</p>
+                            <p class="mb-2"><strong>${make} ${model}</strong></p>
+                            <p class="mb-2"><i class="bi bi-people"></i> ${seats} seats</p>
+                            <p class="mb-2"><i class="bi bi-geo"></i> ${city}</p>
+                            <p class="mb-3 mt-auto"><strong>${price === 'N/A' ? 'N/A' : '$' + price}</strong> / day</p>
+                            <a href="/vehicle/${id}/" class="btn btn-primary w-100">View Demo</a>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function renderDemoVehicles() {
+            const list = document.getElementById('vehiclesList');
+            const demo = [
+                { id: 101, type: 'car', title: 'Demo Sedan', description: 'Comfortable 4-seater, great for city trips.', make: 'DemoMake', model: 'S1', seats: 4, location_city: 'Demo City', price_per_day: 49.99 },
+                { id: 102, type: 'bike', title: 'Demo Bike', description: 'Lightweight city bike, easy to park.', make: 'DemoBike', model: 'B100', seats: 1, location_city: 'Demo Town', price_per_day: 14.99 },
+                { id: 103, type: 'car', title: 'Demo SUV', description: 'Spacious SUV for family trips.', make: 'DemoSUV', model: 'X5', seats: 7, location_city: 'Demo Region', price_per_day: 89.99 }
+            ];
+
+            list.innerHTML = demo.map(v => {
+                const id = v.id ?? v.pk ?? '';
+                const type = (v.type || 'unknown');
+                const typeLabel = (typeof type === 'string') ? type.toUpperCase() : String(type);
+                const price = (v.price_per_day !== undefined && v.price_per_day !== null && !isNaN(parseFloat(v.price_per_day))) ? parseFloat(v.price_per_day).toFixed(2) : 'N/A';
+
+                return `
+                <div class="col-12 mb-3">
+                    <div class="d-flex bg-white p-3 rounded shadow-sm align-items-center">
+                        <img src="https://via.placeholder.com/140x90?text=${encodeURIComponent(typeLabel)}" alt="${v.title}" style="width:140px;height:90px;object-fit:cover;border-radius:6px;margin-right:16px;">
+                        <div class="flex-grow-1">
+                            <h5 class="mb-1">${v.title} <small class="text-muted">• ${v.type}</small></h5>
+                            <p class="mb-1 text-muted">${v.description}</p>
+                            <p class="mb-0"><strong>${price === 'N/A' ? 'N/A' : '$' + price}</strong> / day • ${v.seats} seats • ${v.location_city}</p>
+                        </div>
+                        <div style="min-width:140px;text-align:right;">
+                            <a href="/vehicle/${id}/" class="btn btn-outline-primary">View Demo</a>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function applyFilters() {
+            const type = document.getElementById('filterType').value;
+            const seats = document.getElementById('filterSeats').value;
+            const minPrice = document.getElementById('filterMinPrice').value;
+            const maxPrice = document.getElementById('filterMaxPrice').value;
+            const city = document.getElementById('filterCity').value;
+
+            let url = '/api/vehicles/?';
+            if (type) url += `type=${type}&`;
+            if (seats) url += `seats=${seats}&`;
+            if (minPrice) url += `min_price=${minPrice}&`;
+            if (maxPrice) url += `max_price=${maxPrice}&`;
+            if (city) url += `city=${city}&`;
+
+            apiUrl = url;
+            loadVehicles();
+        }
+
+        function clearFilters() {
+            document.getElementById('filterType').value = '';
+            document.getElementById('filterSeats').value = '';
+            document.getElementById('filterMinPrice').value = '';
+            document.getElementById('filterMaxPrice').value = '';
+            document.getElementById('filterCity').value = '';
+            apiUrl = '/api/vehicles/';
+            loadVehicles();
+        }
+
+        // Load vehicles on page load
+        loadVehicles();
+    </script>
+</body>
+</html>

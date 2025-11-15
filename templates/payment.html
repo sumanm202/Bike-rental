@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment - Bike & Car Rental</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .payment-panel { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 500px; margin: 40px auto; }
+        .btn-primary { background-color: #667eea; border: none; }
+        .btn-primary:hover { background-color: #764ba2; }
+        .summary-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .summary-item.total { font-weight: bold; font-size: 1.25rem; }
+        .loading { display: none; }
+        .error { color: #dc3545; }
+        .success { color: #28a745; }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">🚗 Bike & Car Rental</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/vehicles/">Vehicles</a></li>
+                    <li class="nav-item">
+                        <div class="nav-link dropdown">
+                            <button class="btn btn-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="userDropdownBtn">👤 Account</button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="/dashboard/">Dashboard</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="logoutNav(event)">Logout</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/admin/">🔑 Admin</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="payment-panel">
+        <h3 class="mb-4 text-center">Complete Your Payment</h3>
+
+        <div id="bookingSummary" class="mb-4">
+            <h5>Booking Summary</h5>
+            <div class="summary-item">
+                <span>Vehicle:</span>
+                <strong id="summaryVehicle">Loading...</strong>
+            </div>
+            <div class="summary-item">
+                <span>Dates:</span>
+                <strong id="summaryDates">Loading...</strong>
+            </div>
+            <div class="summary-item">
+                <span>Days:</span>
+                <strong id="summaryDays">-</strong>
+            </div>
+            <div class="summary-item">
+                <span>Price/Day:</span>
+                <strong id="summaryPrice">$0.00</strong>
+            </div>
+            <div class="summary-item">
+                <span>Subtotal:</span>
+                <strong id="summarySubtotal">$0.00</strong>
+            </div>
+            <div class="summary-item">
+                <span>Deposit:</span>
+                <strong id="summaryDeposit">$0.00</strong>
+            </div>
+            <div class="summary-item total">
+                <span>Total Amount:</span>
+                <strong id="summaryTotal">$0.00</strong>
+            </div>
+        </div>
+
+        <hr>
+
+        <div id="paymentForm" class="mb-4">
+            <label class="form-label">Email</label>
+            <input type="email" id="email" class="form-control mb-3" placeholder="your@email.com" required>
+
+            <div id="card-element" class="form-control p-3" style="height: 40px;"></div>
+            <div id="card-errors" class="error mt-2" style="display: none;"></div>
+        </div>
+
+        <div class="mb-3">
+            <button id="submitBtn" class="btn btn-primary w-100" onclick="submitPayment()">
+                Pay <strong id="payAmount">$0.00</strong>
+            </button>
+            <div id="loading" class="loading text-center mt-3">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Processing...</span>
+                </div>
+                <p>Processing your payment...</p>
+            </div>
+        </div>
+
+        <div id="message" class="alert" style="display: none;"></div>
+
+        <p class="small text-muted text-center mt-4">
+            Secure payment powered by Stripe. Your card information is not stored.
+        </p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function logoutNav(e){e.preventDefault();localStorage.removeItem('authToken');window.location.href='/';}
+        const bookingId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/')[2];
+        const stripe = Stripe('{{ stripe_publishable_key }}');
+        const elements = stripe.elements();
+        const cardElement = elements.create('card');
+        cardElement.mount('#card-element');
+
+        function loadBooking() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/login/';
+                return;
+            }
+
+            fetch(`/api/bookings/${bookingId}/?format=json`, {
+                headers: { 
+                    'Authorization': `Token ${token}`,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(resp => {
+                if (!resp.ok) {
+                    throw new Error(`Failed to load booking (HTTP ${resp.status})`);
+                }
+                return resp.json();
+            })
+            .then(booking => {
+                // Safe property access with fallbacks
+                const vehicleTitle = (booking.vehicle && booking.vehicle.title) || 'Unknown Vehicle';
+                const pricePerDay = (booking.vehicle && booking.vehicle.price_per_day !== undefined) ? parseFloat(booking.vehicle.price_per_day) : 0;
+                const deposit = (booking.vehicle && booking.vehicle.deposit !== undefined) ? parseFloat(booking.vehicle.deposit) : 0;
+                const totalPrice = (booking.total_price !== undefined) ? parseFloat(booking.total_price) : 0;
+                const startDate = booking.start_date || 'Unknown';
+                const endDate = booking.end_date || 'Unknown';
+
+                document.getElementById('summaryVehicle').innerText = vehicleTitle;
+                document.getElementById('summaryDates').innerText = `${startDate} to ${endDate}`;
+                document.getElementById('summaryPrice').innerText = '$' + pricePerDay.toFixed(2);
+                document.getElementById('summaryDeposit').innerText = '$' + deposit.toFixed(2);
+                document.getElementById('summaryTotal').innerText = '$' + totalPrice.toFixed(2);
+                document.getElementById('payAmount').innerText = '$' + totalPrice.toFixed(2);
+
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const msPerDay = 1000 * 60 * 60 * 24;
+                const diff = Math.floor((end - start) / msPerDay);
+                const days = diff >= 0 ? diff + 1 : 0;
+                document.getElementById('summaryDays').innerText = days;
+                document.getElementById('summarySubtotal').innerText = '$' + (pricePerDay * days).toFixed(2);
+            })
+            .catch(err => {
+                console.error('Error loading booking:', err);
+                document.getElementById('message').className = 'alert alert-danger';
+                document.getElementById('message').innerText = 'Error loading booking: ' + err.message;
+                document.getElementById('message').style.display = 'block';
+                document.getElementById('submitBtn').disabled = true;
+            });
+        }
+
+        function submitPayment() {
+            const email = document.getElementById('email').value;
+            const token = localStorage.getItem('authToken');
+
+            if (!email) {
+                alert('Please enter your email');
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('submitBtn').disabled = true;
+
+            // Create checkout session via API
+            fetch('/api/payments/create-checkout/?format=json', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token ${token}`,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ booking_id: bookingId })
+            })
+            .then(resp => {
+                if (!resp.ok) return resp.text().then(t => { throw new Error(t || 'Checkout failed'); });
+                return resp.json();
+            })
+            .then(data => {
+                // Redirect to Stripe Checkout
+                if (data.sessionId) {
+                    window.location.href = `https://checkout.stripe.com/pay/${data.sessionId}`;
+                } else {
+                    throw new Error('No session ID returned');
+                }
+            })
+            .catch(err => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('message').className = 'alert alert-danger';
+                document.getElementById('message').innerText = 'Error: ' + err.message;
+                document.getElementById('message').style.display = 'block';
+                console.error('Payment error:', err);
+            });
+        }
+
+        cardElement.addEventListener('change', event => {
+            const errors = document.getElementById('card-errors');
+            if (event.error) {
+                errors.innerText = event.error.message;
+                errors.style.display = 'block';
+            } else {
+                errors.style.display = 'none';
+            }
+        });
+
+        // Load booking on page load
+        loadBooking();
+    </script>
+</body>
+</html>

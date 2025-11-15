@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Details - Bike & Car Rental</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .vehicle-image { height: 400px; object-fit: cover; border-radius: 8px; }
+        .spec-item { padding: 10px 0; border-bottom: 1px solid #e9ecef; }
+        .spec-item:last-child { border-bottom: none; }
+        .booking-panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: sticky; top: 100px; }
+        .price-breakdown { background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .btn-primary { background-color: #667eea; border: none; }
+        .btn-primary:hover { background-color: #764ba2; }
+        .error { color: #dc3545; margin-top: 10px; }
+        .success { color: #28a745; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">🚗 Bike & Car Rental</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/vehicles/">Vehicles</a></li>
+                    <li class="nav-item">
+                        <div class="nav-link dropdown">
+                            <button class="btn btn-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="userDropdownBtn">👤 User</button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="/login/">Login</a></li>
+                                <li><a class="dropdown-item" href="/register/">Sign Up</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/dashboard/">Dashboard</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="logoutNav(event)">Logout</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/admin/">🔑 Admin</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <script>
+        function updateUserDropdown(){const token=localStorage.getItem('authToken');const btn=document.getElementById('userDropdownBtn');if(!btn)return;const items=document.querySelectorAll('.dropdown-menu li');if(token){btn.innerText='👤 Account';items[0].style.display='none';items[1].style.display='none';items[3].style.display='block';items[4].style.display='block';}else{btn.innerText='👤 User';items[0].style.display='block';items[1].style.display='block';items[3].style.display='none';items[4].style.display='none';}}\nfunction logoutNav(e){e.preventDefault();localStorage.removeItem('authToken');updateUserDropdown();window.location.href='/';}\ndocument.addEventListener('DOMContentLoaded',updateUserDropdown);window.addEventListener('storage',updateUserDropdown);
+    </script>
+
+    <div class="container py-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item"><a href="/vehicles/">Vehicles</a></li>
+                <li class="breadcrumb-item active" id="breadcrumb">Details</li>
+            </ol>
+        </nav>
+
+        <div class="row">
+            <!-- Left: Vehicle Details -->
+            <div class="col-md-7">
+                <img id="vehicleImage" src="https://via.placeholder.com/400x300" class="vehicle-image mb-4" alt="Vehicle">
+
+                <div id="vehicleDetails">
+                    <h2 id="vehicleTitle">Loading...</h2>
+                    <p id="vehicleDesc" class="text-muted"></p>
+
+                    <div class="spec-item">
+                        <strong>Type:</strong> <span id="vehicleType"></span>
+                    </div>
+                    <div class="spec-item">
+                        <strong>Make & Model:</strong> <span id="vehicleMake"></span> <span id="vehicleModel"></span>
+                    </div>
+                    <div class="spec-item">
+                        <strong>Year:</strong> <span id="vehicleYear"></span>
+                    </div>
+                    <div class="spec-item">
+                        <strong>Seats:</strong> <span id="vehicleSeats"></span>
+                    </div>
+                    <div class="spec-item">
+                        <strong>Location:</strong> <span id="vehicleLocation"></span>
+                    </div>
+                    <div class="spec-item">
+                        <strong>Price per Day:</strong> $<span id="vehiclePrice"></span>
+                    </div>
+                    <div class="spec-item">
+                        <strong>Security Deposit:</strong> $<span id="vehicleDeposit"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Booking Panel -->
+            <div class="col-md-5">
+                <div class="booking-panel">
+                    <h4 class="mb-3">Book This Vehicle</h4>
+
+                    <div class="mb-3">
+                        <label class="form-label">Start Date</label>
+                        <input type="date" id="startDate" class="form-control" onchange="calculatePrice()">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">End Date</label>
+                        <input type="date" id="endDate" class="form-control" onchange="calculatePrice()">
+                    </div>
+
+                    <div class="price-breakdown">
+                        <div class="mb-2">
+                            <span>Days:</span>
+                            <strong id="days" class="float-end">0</strong>
+                        </div>
+                        <div class="mb-2">
+                            <span>Price / Day:</span>
+                            <strong id="pricePerDay" class="float-end">$0.00</strong>
+                        </div>
+                        <div class="mb-2">
+                            <span>Rental Cost:</span>
+                            <strong id="rentalCost" class="float-end">$0.00</strong>
+                        </div>
+                        <div class="mb-2">
+                            <span>Deposit:</span>
+                            <strong id="depositCost" class="float-end">$0.00</strong>
+                        </div>
+                        <hr>
+                        <div class="mb-2">
+                            <span>Total:</span>
+                            <strong id="totalPrice" class="float-end" style="font-size: 1.25rem;">$0.00</strong>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary w-100 mt-3" onclick="proceedToBooking()">Proceed to Booking</button>
+                    <div id="bookingMessage"></div>
+
+                    <hr class="my-3">
+                    <p class="small text-muted">
+                        ✓ Secure payment with Stripe<br>
+                        ✓ Flexible cancellation<br>
+                        ✓ Customer support 24/7
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script>
+        const vehicleId = new URLSearchParams(window.location.search).get('id') || window.location.pathname.split('/')[2];
+        let vehicleData = null;
+
+        function fmtCurrency(val) {
+            if (val === null || val === undefined) return 'N/A';
+            const n = parseFloat(val);
+            if (isNaN(n)) return 'N/A';
+            return '$' + n.toFixed(2);
+        }
+
+        function safeNumber(val, fallback = 0) {
+            const n = parseFloat(val);
+            return isNaN(n) ? fallback : n;
+        }
+
+        // Demo fallback data (used when coming from demo list)
+        const demoVehicles = {
+            101: { id: 101, type: 'car', title: 'Demo Sedan', description: 'Comfortable 4-seater, great for city trips.', make: 'DemoMake', model: 'S1', seats: 4, location_city: 'Demo City', price_per_day: 49.99, deposit: 100.00, images: [] },
+            102: { id: 102, type: 'bike', title: 'Demo Bike', description: 'Lightweight city bike, easy to park.', make: 'DemoBike', model: 'B100', seats: 1, location_city: 'Demo Town', price_per_day: 14.99, deposit: 10.00, images: [] },
+            103: { id: 103, type: 'car', title: 'Demo SUV', description: 'Spacious SUV for family trips.', make: 'DemoSUV', model: 'X5', seats: 7, location_city: 'Demo Region', price_per_day: 89.99, deposit: 150.00, images: [] }
+        };
+
+        function loadVehicle() {
+            fetch(`/api/vehicles/${vehicleId}/?format=json`)
+                .then(resp => {
+                    if (!resp.ok) {
+                        // If not found, fall back to demo data when available
+                        if (resp.status === 404 && demoVehicles[vehicleId]) {
+                            // return a shallow copy and mark as demo so booking is disabled
+                            const d = Object.assign({}, demoVehicles[vehicleId]);
+                            d.demo = true;
+                            return d;
+                        }
+                        throw new Error(`API returned ${resp.status}`);
+                    }
+                    return resp.json();
+                })
+                .then(data => {
+                    vehicleData = data;
+                    const title = data.title || 'Untitled';
+                    document.getElementById('vehicleTitle').innerText = title;
+                    document.getElementById('vehicleDesc').innerText = data.description || 'No description available';
+                    document.getElementById('vehicleType').innerText = data.type || 'N/A';
+                    document.getElementById('vehicleMake').innerText = data.make || 'N/A';
+                    document.getElementById('vehicleModel').innerText = data.model || '';
+                    document.getElementById('vehicleYear').innerText = data.year || 'N/A';
+                    document.getElementById('vehicleSeats').innerText = data.seats || 'N/A';
+                    const city = data.location_city || 'N/A';
+                    const state = data.location_state || '';
+                    document.getElementById('vehicleLocation').innerText = state ? `${city}, ${state}` : city;
+
+                    // Price and deposit: show N/A when missing
+                    const price = safeNumber(data.price_per_day, null);
+                    const deposit = safeNumber(data.deposit, null);
+
+                    document.getElementById('vehiclePrice').innerText = (price === null ? 'N/A' : price.toFixed(2));
+                    document.getElementById('vehicleDeposit').innerText = (deposit === null ? 'N/A' : deposit.toFixed(2));
+                    document.getElementById('pricePerDay').innerText = (price === null ? 'N/A' : '$' + price.toFixed(2));
+
+                    // Image
+                    if (data.images && data.images.length) {
+                        document.getElementById('vehicleImage').src = data.images[0].image || document.getElementById('vehicleImage').src;
+                    }
+
+                    document.getElementById('breadcrumb').innerText = title;
+
+                    // If price is missing, disable booking flow
+                    if (price === null) {
+                        document.querySelector('button[onclick="proceedToBooking()"]').disabled = true;
+                        document.getElementById('bookingMessage').innerHTML = '<p class="error">This vehicle has no price set and cannot be booked online.</p>';
+                    }
+                })
+                .catch(err => {
+                    alert('Error loading vehicle: ' + err.message);
+                });
+        }
+
+        function calculatePrice() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if (!startDate || !endDate || !vehicleData) {
+                return;
+            }
+
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const msPerDay = 1000 * 60 * 60 * 24;
+            const diff = Math.floor((end - start) / msPerDay);
+            const days = diff >= 0 ? diff + 1 : 0;
+
+            if (days < 1) {
+                document.getElementById('bookingMessage').innerHTML = '<p class="error">End date must be on or after start date</p>';
+                return;
+            }
+
+            const price = safeNumber(vehicleData.price_per_day, null);
+            const deposit = safeNumber(vehicleData.deposit, null);
+
+            if (price === null) {
+                document.getElementById('days').innerText = days;
+                document.getElementById('rentalCost').innerText = 'N/A';
+                document.getElementById('depositCost').innerText = (deposit === null ? 'N/A' : '$' + deposit.toFixed(2));
+                document.getElementById('totalPrice').innerText = 'N/A';
+                document.getElementById('bookingMessage').innerHTML = '<p class="error">This vehicle has no price set and cannot be booked online.</p>';
+                return;
+            }
+
+            const rentalCost = price * days;
+            const total = rentalCost + (deposit || 0);
+
+            document.getElementById('days').innerText = days;
+            document.getElementById('rentalCost').innerText = '$' + rentalCost.toFixed(2);
+            document.getElementById('depositCost').innerText = '$' + (deposit || 0).toFixed(2);
+            document.getElementById('totalPrice').innerText = '$' + total.toFixed(2);
+            document.getElementById('bookingMessage').innerHTML = '';
+        }
+
+        function proceedToBooking() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const msgDiv = document.getElementById('bookingMessage');
+
+            if (!startDate || !endDate) {
+                msgDiv.innerHTML = '<p class="error">Please select both start and end dates</p>';
+                return;
+            }
+
+            // Prevent booking for demo objects or when price is missing
+            if (vehicleData && vehicleData.demo) {
+                msgDiv.innerHTML = '<p class="error">This is demo data — bookings are disabled. Create a real vehicle in the admin to test bookings.</p>';
+                return;
+            }
+
+            const price = safeNumber(vehicleData.price_per_day, null);
+            if (price === null) {
+                msgDiv.innerHTML = '<p class="error">This vehicle cannot be booked online (price not set).</p>';
+                return;
+            }
+
+            msgDiv.innerHTML = '<p>Creating booking...</p>';
+
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                msgDiv.innerHTML = '<p class="error">Please log in to book. <a href="/login/">Login here</a></p>';
+                return;
+            }
+
+            fetch('/api/bookings/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token ${token}`
+                },
+                body: JSON.stringify({
+                    vehicle: vehicleId,
+                    start_date: startDate,
+                    end_date: endDate
+                })
+            })
+            .then(resp => {
+                if (!resp.ok) return resp.text().then(t => { throw new Error(t || 'Booking failed'); });
+                return resp.json();
+            })
+            .then(booking => {
+                msgDiv.innerHTML = '<p class="success">Booking created! Redirecting to payment...</p>';
+                // Store booking ID and redirect to payment
+                localStorage.setItem('bookingId', booking.id);
+                window.location.href = `/payment/${booking.id}/`;
+            })
+            .catch(err => {
+                msgDiv.innerHTML = '<p class="error">Error: ' + err.message + '</p>';
+            });
+        }
+
+        // Load vehicle on page load
+        loadVehicle();
+
+        // Set min date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('startDate').min = today;
+        document.getElementById('endDate').min = today;
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+Django==4.2
+djangorestframework==3.14.0
+stripe==13.1.2
+python-dotenv==1.0.0
+dj-database-url==1.0.0
+django-environ==0.9.0
+# psycopg2-binary==2.9.10  # optional for PostgreSQL (use SQLite locally)
+# Pillow==10.1.0  # optional for image handling (install after switching Python to 3.10-3.12)
